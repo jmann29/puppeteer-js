@@ -9,6 +9,18 @@ app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3000;
 
+// Get Supabase credentials from environment variables (SECURE)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY environment variables');
+  process.exit(1);
+}
+
+// Initialize Supabase client once at startup
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'cookbook-pdf-service' });
@@ -16,9 +28,10 @@ app.get('/', (req, res) => {
 
 // PDF generation endpoint
 app.post('/generate-pdf', async (req, res) => {
-  const { user_id, cookbook_id, cookbook_data, supabase_url, supabase_service_key } = req.body;
+  const { user_id, cookbook_id, cookbook_data } = req.body;
 
-  if (!user_id || !cookbook_id || !cookbook_data || !supabase_url || !supabase_service_key) {
+  // Only validate the data we need - no credentials from client
+  if (!user_id || !cookbook_id || !cookbook_data) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
   }
 
@@ -53,8 +66,7 @@ app.post('/generate-pdf', async (req, res) => {
     await browser.close();
     browser = null;
 
-    // Upload to Supabase Storage
-    const supabase = createClient(supabase_url, supabase_service_key);
+    // Upload to Supabase Storage (using env var credentials)
     const filePath = `${user_id}/${cookbook_id}.pdf`;
 
     const { error: uploadError } = await supabase.storage
@@ -499,22 +511,22 @@ function generateDividerHTML(divider) {
 }
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`PDF service running on port ${PORT}`);
+  console.log(`PDF service running on port ${PORT}`);
+});
+
+// Keep the process alive
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-  
-  // Keep the process alive
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-      console.log('Server closed');
-      process.exit(0);
-    });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-  
-  process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');
-    server.close(() => {
-      console.log('Server closed');
-      process.exit(0);
-    });
-  });
+});
