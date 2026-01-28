@@ -498,6 +498,23 @@ function generateDividerHTML(divider) {
   `;
 }
 
-app.listen(PORT, () => {
-  console.log(`PDF service running on port ${PORT}`);
-});
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`PDF service running on port ${PORT}`);
+  });
+  
+  // Keep the process alive
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
+  
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
